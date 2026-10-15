@@ -1,0 +1,12 @@
+# Not part of the image: CI, deployment manifests, developer tooling and tests.
+.git
+.github/
+deploy/
+scripts/
+secrets/
+certs/dev/
+portal/test/
+**/node_modules
+**/*_test.go
+docker-compose.yml
+README.md

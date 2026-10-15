@@ -1,0 +1,63 @@
+# edgectl settings for this depot gateway.
+# edgectl reads this file once at start; restart the container to apply a change.
+# Paths are paths inside the container.
+
+depot:
+  site: SLC
+  name: Salt Lake City cross-dock
+  gateway_id: slc-gw-01
+
+listen:
+  # loopback only: nginx proxies /api/, /ops/ and its health check here
+  api: 127.0.0.1:9443
+
+state_dir: /var/lib/merrowgate
+pki_dir: /etc/merrowgate/pki
+
+tokens:
+  issuer: https://edge.merrowgate.example
+  # signed with pki_dir/token-signing.key; the portal checks them with the public half
+  algorithm: ES256
+  ttl: 12h
+
+admin:
+  # for new and changed passwords; accounts imported from a v1 appliance keep
+  # their bcrypt hash until the next successful login
+  password_hash: argon2id
+  time: 3
+  memory_kib: 65536
+  threads: 2
+  login_ttl: 30m
+
+webhooks:
+  signature: hmac-sha256
+  secret_file: /run/secrets/webhook_secret
+  timeout: 10s
+  endpoints:
+    - https://ops.merrowgate.example/hooks/depot-events
+
+telemetry:
+  broker: 127.0.0.1:1883
+  username: device-relay
+  password_file: /run/secrets/mqtt_relay_password
+  topic_buckets: 16
+  workers: 4
+  hash_ring_replicas: 64
+  envelope: chacha20-poly1305
+  archive:
+    key_prefix: depots/
+    bucket: merrowgate-telemetry
+    every: 1h
+
+upstream:
+  url: https://cloud.merrowgate.example
+  timeout: 20s
+
+engineers:
+  cert_ttl: 8h
+  principals:
+    - fieldops
+
+attestation:
+  required: true
+  challenge_ttl: 2m

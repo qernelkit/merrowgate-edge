@@ -1,0 +1,44 @@
+# Runs the gateway image on a workstation. Before the first `docker compose up --build`:
+#   mkdir -p secrets
+#   echo 'a password for /ops/' > secrets/fieldops.txt
+#   echo 'any long random string' > secrets/webhook.txt
+#   export MQTT_RELAY_PASSWORD='the broker password edgectl uses'
+# Never commit secrets/; .dockerignore keeps it out of the build context.
+name: merrowgate-edge
+
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+        MQTT_RELAY_PASSWORD: ${MQTT_RELAY_PASSWORD:?export MQTT_RELAY_PASSWORD first}
+      secrets:
+        - fieldops_password
+    image: merrowgate/edge-gateway:dev
+    hostname: slc-gw-01
+    ports:
+      - "443:443"
+      - "8443:8443"
+      - "8883:8883"
+      - "8884:8884"
+      - "2222:2222"
+    environment:
+      FIRMWARE_LINK_SECRET: ${FIRMWARE_LINK_SECRET:-}
+    secrets:
+      - mqtt_relay_password
+      - webhook_secret
+    volumes:
+      - gateway-state:/var/lib/merrowgate
+    restart: unless-stopped
+
+secrets:
+  fieldops_password:
+    file: ./secrets/fieldops.txt
+  mqtt_relay_password:
+    environment: MQTT_RELAY_PASSWORD
+  webhook_secret:
+    file: ./secrets/webhook.txt
+
+volumes:
+  gateway-state:

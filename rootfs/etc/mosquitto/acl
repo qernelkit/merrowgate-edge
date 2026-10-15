@@ -1,0 +1,26 @@
+# /etc/mosquitto/acl: who may publish and read which depot topics.
+# Usernames are the client certificate CN on 8883, the PSK identity on 8884 and the password-file
+# account on the loopback listener.
+
+# Every device reads its own command topic and reports its own status.
+pattern read depots/+/devices/%u/commands
+pattern write depots/+/devices/%u/status
+
+# Sensor gateways publish their readings under their own name.
+pattern write depots/+/sensors/%u
+
+# edgectl's relay republishes the readings devices post to the control API (in buckets, one topic per
+# device) and sends device commands.
+user device-relay
+topic write depots/+/telemetry/#
+topic write depots/+/devices/+/commands
+topic read depots/+/devices/+/status
+
+# The yard system and the dock displays consume readings and device status.
+user slc-yard-system
+topic read depots/+/telemetry/#
+topic read depots/+/sensors/+
+topic read depots/+/devices/+/status
+
+user slc-dock-displays
+topic read depots/+/telemetry/#

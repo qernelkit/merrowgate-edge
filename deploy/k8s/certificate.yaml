@@ -1,0 +1,28 @@
+# Portal and edge TLS certificate from the Merrowgate issuing CA, for depot clusters with cert-manager.
+# cert-manager keeps it in the portal-tls Secret and renews it a month before expiry.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: portal
+  namespace: merrowgate-edge
+  labels:
+    app.kubernetes.io/name: edge-gateway
+    app.kubernetes.io/component: portal
+spec:
+  secretName: portal-tls
+  duration: 8760h
+  renewBefore: 720h
+  commonName: portal.merrowgate.example
+  dnsNames:
+    - portal.merrowgate.example
+    - edge.merrowgate.example
+  usages:
+    - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: merrowgate-issuing

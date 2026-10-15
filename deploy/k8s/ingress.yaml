@@ -1,0 +1,31 @@
+# Staff browsers reach the portal through the cluster's ingress controller; devices keep talking to the
+# gateway's own listeners (see the LoadBalancer Service in deployment.yaml).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edge-portal
+  namespace: merrowgate-edge
+  labels:
+    app.kubernetes.io/name: edge-gateway
+    app.kubernetes.io/component: portal
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305"
+    nginx.ingress.kubernetes.io/proxy-body-size: 4m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - portal.merrowgate.example
+      secretName: portal-tls
+  rules:
+    - host: portal.merrowgate.example
+      http:
+        paths:
+          - path: /portal/
+            pathType: Prefix
+            backend:
+              service:
+                name: edge-gateway
+                port:
+                  name: https

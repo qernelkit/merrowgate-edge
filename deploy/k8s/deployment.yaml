@@ -1,0 +1,148 @@
+# The gateway on a depot's single-node cluster. One replica per depot: the state volume holds the gateway's
+# master secret, the device registry and the audit log, so two pods must never share it.
+#
+# edge-gateway-secrets is created by the provisioning run, not from this repository:
+#   kubectl -n merrowgate-edge create secret generic edge-gateway-secrets \
+#     --from-file=mqtt_relay_password --from-file=webhook_secret --from-file=firmware_link_secret
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-gateway-config
+  namespace: merrowgate-edge
+  labels:
+    app.kubernetes.io/name: edge-gateway
+data:
+  PORTAL_SORT_KEYS: "depot,bay,serial"
+  PORTAL_PORT: "8444"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edge-gateway-state
+  namespace: merrowgate-edge
+  labels:
+    app.kubernetes.io/name: edge-gateway
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-gateway
+  namespace: merrowgate-edge
+  labels:
+    app.kubernetes.io/name: edge-gateway
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: edge-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: edge-gateway
+      annotations:
+        # cksum of the ConfigMap's data lines; change it with the ConfigMap so the pod is replaced
+        checksum/config: "3240675835"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gateway
+          image: registry.merrowgate.example/edge/gateway:v2.4.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: edge-gateway-config
+          env:
+            - name: FIRMWARE_LINK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: edge-gateway-secrets
+                  key: firmware_link_secret
+          ports:
+            - name: https
+              containerPort: 443
+            - name: scanners
+              containerPort: 8443
+            - name: mqtt-devices
+              containerPort: 8883
+            - name: mqtt-sensors
+              containerPort: 8884
+            - name: bastion
+              containerPort: 2222
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/merrowgate
+            - name: runtime-secrets
+              mountPath: /run/secrets
+              readOnly: true
+            - name: portal-tls
+              mountPath: /etc/merrowgate/pki/portal/portal.crt
+              subPath: tls.crt
+              readOnly: true
+            - name: portal-tls
+              mountPath: /etc/merrowgate/pki/portal/portal.key
+              subPath: tls.key
+              readOnly: true
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/healthcheck.sh"]
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: edge-gateway-state
+        - name: runtime-secrets
+          secret:
+            secretName: edge-gateway-secrets
+            defaultMode: 0400
+            items:
+              - key: mqtt_relay_password
+                path: mqtt_relay_password
+              - key: webhook_secret
+                path: webhook_secret
+        - name: portal-tls
+          secret:
+            secretName: portal-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-gateway
+  namespace: merrowgate-edge
+  labels:
+    app.kubernetes.io/name: edge-gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: edge-gateway
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+    - name: scanners
+      port: 8443
+      targetPort: scanners
+    - name: mqtt-devices
+      port: 8883
+      targetPort: mqtt-devices
+    - name: mqtt-sensors
+      port: 8884
+      targetPort: mqtt-sensors
+    - name: bastion
+      port: 2222
+      targetPort: bastion
